@@ -88,6 +88,22 @@
 -a always,exit -F arch=b32 -S finit_module -S init_module -S delete_module -F auid!=-1 -k T1215_Kernel_Modules_and_Extensions
 -w /etc/modprobe.conf -p wa -k T1215_Kernel_Modules_and_Extensions
 
+## KExec usage (all actions)
+-a always,exit -F arch=b64 -S kexec_load -k KEXEC
+-a always,exit -F arch=b32 -S sys_kexec_load -k KEXEC
+
+## Special files
+-a exit,always -F arch=b32 -S mknod -S mknodat -k specialfiles
+-a exit,always -F arch=b64 -S mknod -S mknodat -k specialfiles
+
+## Mount operations (only attributable)
+-a always,exit -F arch=b64 -S mount -S umount2 -F auid!=-1 -k mount
+-a always,exit -F arch=b32 -S mount -S umount -S umount2 -F auid!=-1 -k mount
+
+# Change swap (only attributable)
+-a always,exit -F arch=b64 -S swapon -S swapoff -F auid!=-1 -k swap
+-a always,exit -F arch=b32 -S swapon -S swapoff -F auid!=-1 -k swap
+
 ## Time Related Events
 -a exit,always -F arch=b32 -S adjtimex -S settimeofday -S clock_settime -k T1099_Timestomp
 -a exit,always -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k T1099_Timestomp
@@ -170,6 +186,10 @@
 -a always,exit -F path=/usr/bin/newrole -F perm=x -F auid>=500 -F auid!=4294967295 -k T1078_Valid_Accounts
 -a always,exit -F path=/usr/bin/kpac_dhcp_helper -F perm=x -F auid>=500 -F auid!=4294967295 -k T1078_Valid_Accounts
 
+## Root command executions 
+-a exit,always -F arch=b64 -F euid=0 -S execve -k rootcmd
+-a exit,always -F arch=b32 -F euid=0 -S execve -k rootcmd
+
 ## Media Export Related Events
 -a always,exit -F arch=b32 -S mount -F auid>=500 -F auid!=4294967295 -k T1052_Exfiltration_Over_Physical_Medium
 -a always,exit -F arch=b64 -S mount -F auid>=500 -F auid!=4294967295 -k T1052_Exfiltration_Over_Physical_Medium
@@ -194,6 +214,29 @@
 
 ## SSH Related Events
 -w /etc/ssh/sshd_config -k T1021_Remote_Services
+
+# Systemd
+-w /bin/systemctl -p x -k systemd 
+-w /etc/systemd/ -p wa -k systemd
+
+## SELinux events that modify the system's Mandatory Access Controls (MAC)
+-w /etc/selinux/ -p wa -k mac_policy
+
+## Critical elements access failures 
+-a exit,always -F arch=b64 -S open -F dir=/etc -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/bin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/sbin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/usr/bin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/usr/sbin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/var -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/home -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/srv -F success=0 -k unauthedfileaccess
+
+## Power state
+-w /sbin/shutdown -p x -k power
+-w /sbin/poweroff -p x -k power
+-w /sbin/reboot -p x -k power
+-w /sbin/halt -p x -k power
 
 ##C2 Releated Events
 #Log 64 bit processes (a2!=6e filters local unix socket calls)
@@ -257,6 +300,10 @@
 -w /etc/resolv.conf -k T1016_System_Network_Configuration_Discovery
 -w /etc/hosts.allow -k T1016_System_Network_Configuration_Discovery
 -w /etc/hosts.deny -k T1016_System_Network_Configuration_Discovery
+-w /etc/hosts -p wa -k T1016_System_Network_Configuration_Discovery
+-w /etc/sysconfig/network -p wa -k network_modifications
+-w /etc/network/ -p wa -k network
+-a always,exit -F dir=/etc/NetworkManager/ -F perm=wa -k network_modifications
 -w /etc/securetty -p wa -k T1082_System_Information_Discovery
 -w /var/log/faillog -p wa -k T1082_System_Information_Discovery
 -w /var/log/lastlog -p wa -k T1082_System_Information_Discovery
@@ -268,6 +315,13 @@
 -w /usr/bin/grep -p x -k T1081_Credentials_In_Files
 -w /usr/bin/egrep -p x -k T1081_Credentials_In_Files
 -w /usr/bin/ps -p x -k T1057_Process_Discovery
+
+### Changes to issue
+-w /etc/issue -p wa -k etcissue
+-w /etc/issue.net -p wa -k etcissue
+
+## Library search paths
+-w /etc/ld.so.conf -p wa -k libpath
 
 ## Data Copy(Local)
 -w /usr/bin/cp -p x -k T1005_Data_from_Local_System
@@ -331,6 +385,26 @@
 -a always,exit -F arch=b64 -S rmdir -S unlink -S unlinkat -S rename -S renameat -F auid>=500 -F auid!=4294967295 -k T1107_File_Deletion
 -a always,exit -F arch=b32 -S rmdir -S unlink -S unlinkat -S rename -S renameat -F auid=0 -k T1070_Indicator_Removal_on_Host 
 -a always,exit -F arch=b64 -S rmdir -S unlink -S unlinkat -S rename -S renameat -F auid=0 -k T1070_Indicator_Removal_on_Host 
+
+## File Access
+### Unauthorized Access (unsuccessful)
+-a always,exit -F arch=b32 -S creat -S open -S openat -S open_by_handle_at -S truncate -S ftruncate -F exit=-EACCES -F auid>=500 -F auid!=4294967295 -k file_access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S open_by_handle_at -S truncate -S ftruncate -F exit=-EPERM -F auid>=500 -F auid!=4294967295 -k file_access
+-a always,exit -F arch=b64 -S creat -S open -S openat -S open_by_handle_at -S truncate -S ftruncate -F exit=-EACCES -F auid>=500 -F auid!=4294967295 -k file_access
+-a always,exit -F arch=b64 -S creat -S open -S openat -S open_by_handle_at -S truncate -S ftruncate -F exit=-EPERM -F auid>=500 -F auid!=4294967295 -k file_access
+
+### Unsuccessful Creation
+-a always,exit -F arch=b32 -S creat,link,mknod,mkdir,symlink,mknodat,linkat,symlinkat -F exit=-EACCES -k file_creation
+-a always,exit -F arch=b64 -S mkdir,creat,link,symlink,mknod,mknodat,linkat,symlinkat -F exit=-EACCES -k file_creation
+-a always,exit -F arch=b32 -S link,mkdir,symlink,mkdirat -F exit=-EPERM -k file_creation
+-a always,exit -F arch=b64 -S mkdir,link,symlink,mkdirat -F exit=-EPERM -k file_creation
+
+### Unsuccessful Modification
+-a always,exit -F arch=b32 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EACCES -k file_modification
+-a always,exit -F arch=b64 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EACCES -k file_modification
+-a always,exit -F arch=b32 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EPERM -k file_modification
+-a always,exit -F arch=b64 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EPERM -k file_modification
+
 
 # Make the configuration immutable --------------------------------------------
 ##-e 2
